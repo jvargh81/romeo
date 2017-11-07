@@ -1,0 +1,154 @@
+\documentclass{article}
+\usepackage{natbib}
+
+<<echo=FALSE>>=
+packages<-c('dplyr','stringr','tidytext','tm','janeaustenr','wordcloud','wordcloud2')
+@
+
+
+\begin{document}
+\title {Romeo and Juliet Wordcloud}
+\author {Jerrin Joe Varghese}
+\maketitle
+
+
+\begin{abstract}
+In this article we are constructing a wordcloud using the tidytext R package.
+Here we will be taking the words from the famous book Romeo and Juliets written by shakespear.
+We will extract all the words and convert it to a cloud of words in different shape and colurs using the package wordcloud.
+\end{abstract}
+
+\textit{Romeo and Juliet} is a tragic love story written by  William Shakespeare early \noindent in his career.\footnote{The date of the publish is not available.}
+
+\section {The Gutenberg Package}
+This is a relatively new package for R,Gutenberg , that gives one access to all of the novels written by different authors.
+
+<<warning=FALSE,message=FALSE>>=
+library(janeaustenr)
+library(dplyr)
+library(tidytext)
+library(gutenbergr)
+library(wordcloud)
+library(wordcloud2)
+library(ggplot2)
+library(stringr)
+@
+
+
+Let's find the book for Romeo and Juliets by shakespear using gutenberg.
+
+<<>>=
+gutenberg_works(str_detect(title,'Romeo'))
+@
+
+Let's now download and store it into a data frame.
+
+<<warning=FALSE,message=FALSE>>=
+Romeo<-gutenberg_download(1513)
+@
+
+
+\section {Some Data Cleaning}
+
+Adding a new column of line to get the line numbers and clean the id to Null.
+
+<<>>=
+Romeo$line<-1:5268
+Romeo$gutenberg_id<-NULL
+@
+
+
+
+\section{The wordcloud}
+To make the word cloud, we first need to break up the lines into words. We can use the function from package tidytext for this.
+
+<<>>=
+Romeo_words<-Romeo%>%
+  unnest_tokens(word,text)
+@
+
+We can remove common, unimportant words with the stop\_words from the data frame with dplyr.
+<<>>=
+Romeo_words<-Romeo_words%>%
+  filter(!(word %in% stop_words$word))
+@
+
+
+Since this is a tragic love story, so lets only take the joy and sadness word sentiments out of it.
+
+<<>>=
+nrc<-get_sentiments('nrc')
+
+joy_sad<-nrc%>%
+  filter(sentiment == 'joy' | sentiment == 'sadness')
+@
+
+Lets takeout all the joy and sadness words to a dataframe.
+
+<<warning=FALSE,message=FALSE>>=
+Romeo_joy_sad<-inner_join(Romeo_words,joy_sad)
+@
+
+Now we need to calculate frequencies of the words in the novel.  Again, we can use standard techniques for this:
+
+<<>>=
+Romeo_frequency<-Romeo_joy_sad%>%
+  group_by(word)%>%
+  summarise(frequency = n())
+@
+
+Finally lets view our wordcloud.
+
+<<>>=
+wordcloud(Romeo_frequency$word,Romeo_frequency$frequency)
+@
+
+
+
+
+\section{Sentiment Afinn}
+
+There is also another package afinn, which has 2 columns in its data frame, one with the sentiments and the other with the score for those words.
+Let's look into it.
+
+<<>>=
+affin<-get_sentiments('afinn')
+@
+
+Next, we can also divide the lines into groups or chuncks.That we can do by using " %/% num ".Here we are dividing by 80.
+
+<<>>=
+Romeo_words$groups<-Romeo_words$line%/%80
+@
+
+
+We can use inner_join to get our desired words from  the sentiments, this is a way of 
+cleaning.
+
+<<warning=FALSE,message=FALSE>>=
+Romeo_words<-inner_join(Romeo_words,affin)
+@
+
+
+Now, lets score our words in groups of 80line that we have divided.
+
+
+<<>>=
+Romeo_senti_score<-Romeo_words%>%
+  group_by(groups)%>%
+  summarise(Romeo_score=sum(score))
+@
+
+Let us plot the graph for this score.
+<<>>=
+
+ggplot()+
+  geom_point(data=Romeo_senti_score,aes(x=groups,y=Romeo_score))+
+  geom_line(data=Romeo_senti_score,aes(x=groups,y=Romeo_score))
+@
+
+
+\bibliographystyle{apa}
+\bibliography{romeo}
+\nocite{*}
+\end{document}
